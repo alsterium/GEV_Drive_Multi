@@ -1,0 +1,3 @@
+[submodule "nuget_packages"]
+	path = nuget_packages
+	url = git@github.com:alsterium/nuget_packages.git
