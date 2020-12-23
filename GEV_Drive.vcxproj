@@ -124,22 +124,22 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <None Include="packages.config" />
+    <ClCompile Include="GEV_Drive.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="GEV_Drive.cpp" />
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="packages\SpinnakerSDK.2.0.0.4\build\native\SpinnakerSDK.targets" Condition="Exists('packages\SpinnakerSDK.2.0.0.4\build\native\SpinnakerSDK.targets')" />
     <Import Project="packages\opencv4.4.2.0\build\native\opencv4.targets" Condition="Exists('packages\opencv4.4.2.0\build\native\opencv4.targets')" />
+    <Import Project="packages\SpinnakerSDK.2.0.0.4\build\native\SpinnakerSDK.targets" Condition="Exists('packages\SpinnakerSDK.2.0.0.4\build\native\SpinnakerSDK.targets')" />
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>このプロジェクトは、このコンピューター上にない NuGet パッケージを参照しています。それらのパッケージをダウンロードするには、[NuGet パッケージの復元] を使用します。詳細については、http://go.microsoft.com/fwlink/?LinkID=322105 を参照してください。見つからないファイルは {0} です。</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('packages\SpinnakerSDK.2.0.0.4\build\native\SpinnakerSDK.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\SpinnakerSDK.2.0.0.4\build\native\SpinnakerSDK.targets'))" />
     <Error Condition="!Exists('packages\opencv4.4.2.0\build\native\opencv4.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\opencv4.4.2.0\build\native\opencv4.props'))" />
     <Error Condition="!Exists('packages\opencv4.4.2.0\build\native\opencv4.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\opencv4.4.2.0\build\native\opencv4.targets'))" />
+    <Error Condition="!Exists('packages\SpinnakerSDK.2.0.0.4\build\native\SpinnakerSDK.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\SpinnakerSDK.2.0.0.4\build\native\SpinnakerSDK.targets'))" />
   </Target>
 </Project>

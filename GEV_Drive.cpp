@@ -9,6 +9,10 @@ using namespace Spinnaker::GenApi;
 using namespace Spinnaker::GenICam;
 using namespace std;
 
+CameraList camList;
+// カメラの設定を行う関数
+// (I) INodeMap nodeMap 
+// returnval:result(int) 終了状態
 int ConfigureCustomImageSetting(INodeMap& nodeMap) {
 	int result = 0;
 	cout << endl << endl << "*** CONFIGURING CUSTOM IMAGE SETTINGS ***" << endl << endl;
@@ -67,9 +71,12 @@ int ConfigureCustomImageSetting(INodeMap& nodeMap) {
 	return result;
 }
 
-int main() {
-	// システムオブジェクトのシングルトン参照を取得
-	SystemPtr system = System::GetInstance();
+// カメラの初期化を行う関数
+// 繋がっているカメラすべてを初期化する
+//
+// (I) SystemPtr& system システムのシングルトン
+// returnVal:result(int) 終了状態
+int InitCameras(SystemPtr& system) {
 
 	// ライブラリバージョンを出力
 	const LibraryVersion spinnakerLibraryVersion = system->GetLibraryVersion();
@@ -78,7 +85,7 @@ int main() {
 		<< endl;
 
 	// カメラのリストをシステムオブジェクトから取得する
-	CameraList camList = system->GetCameras();
+	camList = system->GetCameras();
 
 	// カメラの台数
 	const unsigned int numCameras = camList.GetSize();
@@ -96,57 +103,94 @@ int main() {
 		return -1;
 	}
 
-	// カメラへのshared pointerを生成する
-	// 
 	CameraPtr pCam = nullptr;
-
 	int result = 0;
 	int err = 0;
+	try {
+		for (int i = 0; i < camList.GetSize(); i++) {
+			pCam = camList.GetByIndex(0);
+			// TLデバイスノードマップとGenICamノードマップを取得
+			INodeMap& nodeMapTLDevice = pCam->GetTLDeviceNodeMap();
+			// カメラを初期化
+			pCam->Init();
+			INodeMap& nodeMap = pCam->GetNodeMap();
+
+			// カメラの画像設定を行う
+			err = ConfigureCustomImageSetting(nodeMap);
+			if (err < 0)
+				result = -1;
+		}
+	}
+	catch (Spinnaker::Exception& e) {
+		cout << "Error: " << e.what() << endl;
+	}
+	return result;
+}
+
+// カメラの終了処理
+// 繋がっているカメラすべてを終了
+//
+// (I) SystemPtr& system システムのシングルトン
+void DeinitCameras(SystemPtr& system) {
+	// システムを開放する前にカメラリストを開放
+	camList.Clear();
+	// システムを開放
+	system->ReleaseInstance();
+
+	cout << endl << "Done! Press Enter to exit..." << endl;
+	getchar();
+}
+
+// カメラ画像の取得
+// pCamのカメラ画像を取得し、カメラ画像を返却する
+// (I) CameraPtr pCam カメラへのポインタ
+// returnVal: cv::Mat カメラ画像（cv::Mat）
+cv::Mat AquireImage(CameraPtr pCam) {
+	cv::Mat dstFrame;
+	ImagePtr pResultImage = pCam->GetNextImage(100);
+		if (pResultImage->IsIncomplete()) {
+			// Retrieve and print the image status description
+			cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
+				<< "..." << endl
+				<< endl;
+		}
+		else {
+			//cout << "Grabbed image " << ", width = " << width << ", height = " << height << endl;
+						// 画像を変換
+			ImagePtr convertedImage = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
+			dstFrame = cv::Mat((int)convertedImage->GetHeight(), (int)convertedImage->GetWidth(), CV_8UC3, convertedImage->GetData()).clone();
+			pResultImage->Release();
+		}
+	return dstFrame;
+}
+
+int main() {
+	int result = 0;
+	
+	/****************
+	* 初期化処理
+	*****************/
+	// システムオブジェクトのシングルトン参照を取得
+	SystemPtr system = System::GetInstance();
+	// カメラの初期化を行う
+	InitCameras(system);
+	/****************
+	*****************/
+
+	// カメラへのshared pointerを生成する
+	CameraPtr pCam = nullptr;
 
 	// 0番目のカメラへのポインタを取得
 	pCam = camList.GetByIndex(0);
 	try {
-		// TLデバイスノードマップとGenICamノードマップを取得
-		INodeMap& nodeMapTLDevice = pCam->GetTLDeviceNodeMap();
-		// カメラを初期化
-		pCam->Init();
-		INodeMap& nodeMap = pCam->GetNodeMap();
-
-		// カメラの画像設定を行う
-		err = ConfigureCustomImageSetting(nodeMap);
-		if (err < 0)
-			return err;
-
-
-
 		pCam->BeginAcquisition();
-		
 		bool lp_break = true;
 		while (lp_break) {
 			try {
-				// 画像を取得
-				ImagePtr pResultImage = pCam->GetNextImage(100);
-				if (pResultImage->IsIncomplete())
-				{
-					// Retrieve and print the image status description
-					cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
-						<< "..." << endl
-						<< endl;
-				}
-				else {
-
-					const size_t width = pResultImage->GetWidth();
-
-					const size_t height = pResultImage->GetHeight();
-
-					//cout << "Grabbed image " << ", width = " << width << ", height = " << height << endl;
-					// 画像を変換
-					ImagePtr convertedImage = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
-					cv::Mat dstFrame((int)convertedImage->GetHeight(), (int)convertedImage->GetWidth(), CV_8UC3, convertedImage->GetData());
-					pResultImage->Release();
+				cv::Mat dstFrame(AquireImage(pCam));
 					cv::imshow("result",dstFrame);
 				if (cv::waitKey(1) == 'c')lp_break = false;
-				}
+				
 			}catch(Spinnaker::Exception& e)
 			{
 				cout << "Error: " << e.what() << endl;
@@ -170,13 +214,8 @@ int main() {
 	***************/
 	// カメラへのポインタを開放
 	pCam = nullptr;
-	// システムを開放する前にカメラリストを開放
-	camList.Clear();
-	// システムを開放
-	system->ReleaseInstance();
-
-	cout << endl << "Done! Press Enter to exit..." << endl;
-	getchar();
+	// カメラの終了処理
+	DeinitCameras(system);
 	/**************
 	***************/
 	return result;
