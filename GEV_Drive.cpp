@@ -63,7 +63,8 @@ int ConfigureCustomImageSetting(INodeMap& nodeMap) {
 		else {
 			cout << "Unable to set acquisition mode to continuous (enum retrieval). Aborting..." << endl << endl;
 		}
-	}catch(Spinnaker::Exception& e){
+	}
+	catch (Spinnaker::Exception& e) {
 		cout << "Error: " << e.what() << endl;
 		result = -1;
 	}
@@ -108,7 +109,7 @@ int InitCameras(SystemPtr& system) {
 	int err = 0;
 	try {
 		for (int i = 0; i < camList.GetSize(); i++) {
-			pCam = camList.GetByIndex(0);
+			pCam = camList.GetByIndex(i);
 			// TLデバイスノードマップとGenICamノードマップを取得
 			INodeMap& nodeMapTLDevice = pCam->GetTLDeviceNodeMap();
 			// カメラを初期化
@@ -148,25 +149,25 @@ void DeinitCameras(SystemPtr& system) {
 cv::Mat AquireImage(CameraPtr pCam) {
 	cv::Mat dstFrame;
 	ImagePtr pResultImage = pCam->GetNextImage(100);
-		if (pResultImage->IsIncomplete()) {
-			// Retrieve and print the image status description
-			cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
-				<< "..." << endl
-				<< endl;
-		}
-		else {
-			//cout << "Grabbed image " << ", width = " << width << ", height = " << height << endl;
-						// 画像を変換
-			ImagePtr convertedImage = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
-			dstFrame = cv::Mat((int)convertedImage->GetHeight(), (int)convertedImage->GetWidth(), CV_8UC3, convertedImage->GetData()).clone();
-			pResultImage->Release();
-		}
+	if (pResultImage->IsIncomplete()) {
+		// Retrieve and print the image status description
+		cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
+			<< "..." << endl
+			<< endl;
+	}
+	else {
+		//cout << "Grabbed image " << ", width = " << width << ", height = " << height << endl;
+					// 画像を変換
+		ImagePtr convertedImage = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
+		dstFrame = cv::Mat((int)convertedImage->GetHeight(), (int)convertedImage->GetWidth(), CV_8UC3, convertedImage->GetData()).clone();
+		pResultImage->Release();
+	}
 	return dstFrame;
 }
 
 int main() {
 	int result = 0;
-	
+
 	/****************
 	* 初期化処理
 	*****************/
@@ -180,30 +181,34 @@ int main() {
 	// カメラへのshared pointerを生成する
 	CameraPtr pCam = nullptr;
 
-	// 0番目のカメラへのポインタを取得
-	pCam = camList.GetByIndex(0);
 	try {
-		pCam->BeginAcquisition();
+		for (int i = 0; i < camList.GetSize(); i++) {
+			pCam = camList.GetByIndex(i);
+			pCam->BeginAcquisition();
+		}
 		bool lp_break = true;
 		while (lp_break) {
+			vector<cv::Mat> Frames;
 			try {
-				cv::Mat dstFrame(AquireImage(pCam));
-					cv::imshow("result",dstFrame);
+				for (int i = 0; i < camList.GetSize(); i++) {
+					pCam = camList.GetByIndex(i);
+					Frames.push_back(AquireImage(pCam));
+				}
+				cv::imshow("result", Frames[0]);
 				if (cv::waitKey(1) == 'c')lp_break = false;
-				
-			}catch(Spinnaker::Exception& e)
+			}
+			catch (Spinnaker::Exception& e)
 			{
 				cout << "Error: " << e.what() << endl;
 				result = -1;
 			}
 		}
-		pCam->EndAcquisition();
-
-
-		//カメラの初期化を解除
-		pCam->DeInit();
+		for (int i = 0; i < camList.GetSize(); i++) {
+			pCam = camList.GetByIndex(i);
+			pCam->EndAcquisition();
+		}
 	}
-	catch(Spinnaker::Exception& e){
+	catch (Spinnaker::Exception& e) {
 		cout << "Error: " << e.what() << endl;
 		result = -1;
 	}
@@ -212,6 +217,8 @@ int main() {
 	/**************
 	* 終了処理
 	***************/
+	//カメラの初期化を解除
+	pCam->DeInit();
 	// カメラへのポインタを開放
 	pCam = nullptr;
 	// カメラの終了処理
