@@ -45,10 +45,19 @@ int ConfigureCustomImageSetting(INodeMap& nodeMap) {
 			cout << "Pixel format not available..." << endl;
 		}
 
+		//CFloatPtr ptrAcquisitionFrameRate = nodeMap.GetNode("AcquisitionFrameRate");
+		//if (IsAvailable(ptrAcquisitionFrameRate) && IsWritable(ptrAcquisitionFrameRate)) {
+		//	ptrAcquisitionFrameRate->SetValue(15.0);
+		//	cout << "AcquisitionFrameRate set to" << ptrAcquisitionFrameRate->GetValue() << "..." << endl;
+		//}
+		//else {
+		//	cout << "AcquisitionFrameRate not available..." << endl;
+		//}
+
 		// DeviceLinkThroughputLimitを設定（帯域を制限する）
 		CIntegerPtr ptrDeviceLinkThroughputLimit = nodeMap.GetNode("DeviceLinkThroughputLimit");
 		if (IsAvailable(ptrDeviceLinkThroughputLimit) && IsWritable(ptrDeviceLinkThroughputLimit)) {
-			ptrDeviceLinkThroughputLimit->SetValue((int64_t)34184000);
+			ptrDeviceLinkThroughputLimit->SetValue((int64_t)28200000);
 			cout << "DeviceLinkThroughputLimit set to " << ptrDeviceLinkThroughputLimit->GetValue() << "..." << endl;
 		}
 		else {
@@ -58,7 +67,7 @@ int ConfigureCustomImageSetting(INodeMap& nodeMap) {
 		// 列挙ノードをnodeMapから取得
 		CEnumerationPtr ptrAcquisitionMode = nodeMap.GetNode("AcquisitionMode");
 		if (IsAvailable(ptrAcquisitionMode) && IsWritable(ptrAcquisitionMode)) {
-			CEnumEntryPtr ptrAcquisitionModeContinuous = ptrAcquisitionMode->GetEntryByName("Continuous");
+			CEnumEntryPtr ptrAcquisitionModeContinuous = ptrAcquisitionMode->GetEntryByName("Continius");
 			if (IsAvailable(ptrAcquisitionModeContinuous) && IsReadable(ptrAcquisitionModeContinuous)) {
 				const int64_t acquisitonModeContinuous = ptrAcquisitionModeContinuous->GetValue();
 
@@ -182,7 +191,7 @@ cv::Mat AquireImage(CameraPtr pCam) {
 //                  - 0 例外発生
 
 DWORD WINAPI AquireImage(LPVOID lpParam) {
-	PCameraParam &param = *((PCameraParam*)lpParam);
+	PCameraParam& param = *((PCameraParam*)lpParam);
 	try {
 		ImagePtr pResultImage = param.pCam->GetNextImage(100);
 		if (pResultImage->IsIncomplete()) {
@@ -204,6 +213,25 @@ DWORD WINAPI AquireImage(LPVOID lpParam) {
 	}
 }
 
+//
+vector<cv::Mat> AquireMultiCamImages() {
+	CameraPtr pCam;
+	vector<cv::Mat> Frames;
+	for (int i = 0; i < camList.GetSize(); i++) {
+		pCam = camList.GetByIndex(i);
+		Frames.push_back(AquireImage(pCam));
+	}
+	pCam = nullptr;
+	return Frames;
+}
+
+void ShowAquiredImages(vector<cv::Mat> Frames) {
+	for (int i = 0; i < camList.GetSize(); i++) {
+		cv::imshow("result " + to_string(i), Frames[i]);
+	}
+
+}
+
 int main() {
 	int result = 0;
 
@@ -219,7 +247,6 @@ int main() {
 
 	// カメラへのshared pointerを生成する
 	CameraPtr pCam = nullptr;
-
 	try {
 		for (int i = 0; i < camList.GetSize(); i++) {
 			pCam = camList.GetByIndex(i);
@@ -227,20 +254,9 @@ int main() {
 		}
 		bool lp_break = true;
 		while (lp_break) {
-			vector<cv::Mat> Frames;
-			try {
-				for (int i = 0; i < camList.GetSize(); i++) {
-					pCam = camList.GetByIndex(i);
-					Frames.push_back(AquireImage(pCam));
-				}
-				cv::imshow("result", Frames[0]);
-				if (cv::waitKey(1) == 'c')lp_break = false;
-			}
-			catch (Spinnaker::Exception& e)
-			{
-				cout << "Error: " << e.what() << endl;
-				result = -1;
-			}
+			vector<cv::Mat> Frames(AquireMultiCamImages());
+			ShowAquiredImages(Frames);
+			if (cv::waitKey(1) == 'c')lp_break = false;
 		}
 		for (int i = 0; i < camList.GetSize(); i++) {
 			pCam = camList.GetByIndex(i);
