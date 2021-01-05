@@ -9,6 +9,15 @@ using namespace Spinnaker::GenApi;
 using namespace Spinnaker::GenICam;
 using namespace std;
 
+struct PCameraParam
+{
+public:
+	CameraPtr pCam;
+	ImagePtr pImg;
+	cv::Mat *dstImg;
+	PCameraParam(CameraPtr in_pCam) { pCam = in_pCam; pImg = ImagePtr(); };
+};
+
 CameraList camList;
 // カメラの設定を行う関数
 // (I) INodeMap nodeMap 
@@ -163,6 +172,36 @@ cv::Mat AquireImage(CameraPtr pCam) {
 		pResultImage->Release();
 	}
 	return dstFrame;
+}
+
+// カメラ画像の取得(マルチスレッド用)
+// lpParamの構造体からカメラポインタとカメラ画像ポインタを取得し、
+// 取得したカメラ画像をカメラ画像ポインタに書き込む
+// (I)lpParam カメラポインタと画像ポインタが格納されている構造体
+// returVal : (int) - 1 正常終了
+//                  - 0 例外発生
+
+DWORD WINAPI AquireImage(LPVOID lpParam) {
+	PCameraParam &param = *((PCameraParam*)lpParam);
+	try {
+		ImagePtr pResultImage = param.pCam->GetNextImage(100);
+		if (pResultImage->IsIncomplete()) {
+			// Retrieve and print the image status description
+			cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
+				<< "..." << endl
+				<< endl;
+		}
+		else {
+			param.pImg = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
+			param.dstImg = &cv::Mat((int)param.pImg->GetHeight(), (int)param.pImg->GetWidth(), CV_8UC3, param.pImg->GetData()).clone();
+
+		}
+		return 1;
+	}
+	catch (Spinnaker::Exception& e) {
+		cout << "Error: " << e.what() << endl;
+		return 0;
+	}
 }
 
 int main() {
