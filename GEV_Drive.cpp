@@ -14,8 +14,7 @@ struct PCameraParam
 public:
 	CameraPtr pCam;
 	ImagePtr pImg;
-	cv::Mat *dstImg;
-	PCameraParam(CameraPtr in_pCam) { pCam = in_pCam; pImg = ImagePtr(); };
+	cv::Mat dstImg;
 };
 
 CameraList camList;
@@ -67,7 +66,7 @@ int ConfigureCustomImageSetting(INodeMap& nodeMap) {
 		// 列挙ノードをnodeMapから取得
 		CEnumerationPtr ptrAcquisitionMode = nodeMap.GetNode("AcquisitionMode");
 		if (IsAvailable(ptrAcquisitionMode) && IsWritable(ptrAcquisitionMode)) {
-			CEnumEntryPtr ptrAcquisitionModeContinuous = ptrAcquisitionMode->GetEntryByName("Continius");
+			CEnumEntryPtr ptrAcquisitionModeContinuous = ptrAcquisitionMode->GetEntryByName("Continuous");
 			if (IsAvailable(ptrAcquisitionModeContinuous) && IsReadable(ptrAcquisitionModeContinuous)) {
 				const int64_t acquisitonModeContinuous = ptrAcquisitionModeContinuous->GetValue();
 
@@ -190,10 +189,10 @@ cv::Mat AquireImage(CameraPtr pCam) {
 // returVal : (int) - 1 正常終了
 //                  - 0 例外発生
 
-DWORD WINAPI AquireImage(LPVOID lpParam) {
+DWORD WINAPI AcquireImage(LPVOID lpParam) {
 	PCameraParam& param = *((PCameraParam*)lpParam);
 	try {
-		ImagePtr pResultImage = param.pCam->GetNextImage(100);
+		ImagePtr pResultImage = param.pCam->GetNextImage(1000);
 		if (pResultImage->IsIncomplete()) {
 			// Retrieve and print the image status description
 			cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
@@ -202,7 +201,7 @@ DWORD WINAPI AquireImage(LPVOID lpParam) {
 		}
 		else {
 			param.pImg = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
-			param.dstImg = &cv::Mat((int)param.pImg->GetHeight(), (int)param.pImg->GetWidth(), CV_8UC3, param.pImg->GetData()).clone();
+			param.dstImg = cv::Mat((int)param.pImg->GetHeight(), (int)param.pImg->GetWidth(), CV_8UC3, param.pImg->GetData()).clone();
 
 		}
 		return 1;
@@ -222,6 +221,69 @@ vector<cv::Mat> AquireMultiCamImages() {
 		Frames.push_back(AquireImage(pCam));
 	}
 	pCam = nullptr;
+	return Frames;
+}
+
+vector<cv::Mat> AquireMultiCamImagesMT() {
+	unsigned int camListSize = 0;
+	vector<cv::Mat> Frames;	
+	int result = 0;
+	try {
+		camListSize = camList.GetSize();
+		CameraPtr* pCamList = new CameraPtr[camListSize];
+		HANDLE* grabTheads = new HANDLE[camListSize];
+		PCameraParam *pParam = new PCameraParam[camListSize];
+
+		for (int i = 0; i < camListSize; i++) {
+			// カメラを選択
+			pCamList[i] = camList.GetByIndex(i);
+			pParam[i].pCam = pCamList[i];
+			grabTheads[i] = CreateThread(nullptr, 0, AcquireImage, &pParam[i], 0, nullptr);
+			assert(grabTheads[i] != nullptr);
+		}
+
+		WaitForMultipleObjects(
+			camListSize, // 待つスレッドの数
+			grabTheads,  // 待つスレッドへのハンドル 
+			TRUE,        // スレッドをすべて待つ
+			INFINITE     // 無限に待つ
+		);
+
+		// 各カメラのスレッドの戻り値を確認する
+		for (int i = 0; i < camListSize; i++) {
+			DWORD exitcode;
+			BOOL rc = GetExitCodeThread(grabTheads[i], &exitcode);
+			if (!rc) {
+				cout << "Handle error from GetExitCodeThread() returned for camera at index " << i << endl;
+				result = -1;
+			}
+			else if (!exitcode) {
+				cout << "Grab thread for camera at index " << i
+					<< " exited with errors."
+					"Please check onscreen print outs for error details"
+					<< endl;
+				result = -1;
+			}
+		}
+
+		// カメラ画像を取りだす
+		for (int i = 0; i < camListSize; i++) {
+			Frames.push_back(pParam[i].dstImg);
+		}
+
+		// カメラポインタの配列をクリア＆すべてのハンドルを閉じる
+		for (int i = 0; i < camListSize; i++) {
+			pCamList[i] = 0;
+			CloseHandle(grabTheads[i]);
+		}
+		delete[] pCamList;
+		delete[] grabTheads;
+		delete[] pParam;
+	}
+	catch (Spinnaker::Exception& e) {
+		cout << "Error: " << e.what() << endl;
+		result = -1;
+	}
 	return Frames;
 }
 
@@ -254,7 +316,7 @@ int main() {
 		}
 		bool lp_break = true;
 		while (lp_break) {
-			vector<cv::Mat> Frames(AquireMultiCamImages());
+			vector<cv::Mat> Frames(AquireMultiCamImagesMT());
 			ShowAquiredImages(Frames);
 			if (cv::waitKey(1) == 'c')lp_break = false;
 		}
