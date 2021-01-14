@@ -202,7 +202,7 @@ DWORD WINAPI AcquireImage(LPVOID lpParam) {
 		else {
 			param.pImg = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
 			param.dstImg = cv::Mat((int)param.pImg->GetHeight(), (int)param.pImg->GetWidth(), CV_8UC3, param.pImg->GetData()).clone();
-
+			cv::resize(param.dstImg, param.dstImg, cv::Size(320, 240));
 		}
 		return 1;
 	}
