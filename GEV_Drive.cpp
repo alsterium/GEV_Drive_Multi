@@ -192,7 +192,7 @@ cv::Mat AquireImage(CameraPtr pCam) {
 DWORD WINAPI AcquireImage(LPVOID lpParam) {
 	PCameraParam& param = *((PCameraParam*)lpParam);
 	try {
-		ImagePtr pResultImage = param.pCam->GetNextImage(1000);
+		ImagePtr pResultImage = param.pCam->GetNextImage(100);
 		if (pResultImage->IsIncomplete()) {
 			// Retrieve and print the image status description
 			cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
@@ -288,10 +288,10 @@ vector<cv::Mat> AquireMultiCamImagesMT() {
 }
 
 void ShowAquiredImages(vector<cv::Mat> Frames) {
-	for (int i = 0; i < camList.GetSize(); i++) {
-		cv::imshow("result " + to_string(i), Frames[i]);
+		for (int i = 0; i < Frames.size(); i++) {
+			if(!Frames[i].empty())
+				cv::imshow("result " + to_string(i), Frames[i]);
 	}
-
 }
 
 int main() {
