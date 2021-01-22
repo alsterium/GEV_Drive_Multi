@@ -3,6 +3,7 @@
 #include "SpinGenApi/SpinnakerGenApi.h"
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <string>
 
 struct PCameraParam
 {
@@ -19,14 +20,17 @@ int ConfigureCustomImageSetting(Spinnaker::GenApi::INodeMap& nodeMap);
 // カメラの初期化を行う関数
 // 繋がっているカメラすべてを初期化する
 //
-// (I) SystemPtr& system システムのシングルトン
+// (I) SystemPtr&  system   システムのシングルトン
+// (I) CameraList& camList  グローバルなカメラリスト
+// (I) string      cameraID カメラID（カメラの順番を固定するリスト） 
 // returnVal:result(int) 終了状態
-int InitCameras(Spinnaker::SystemPtr& system, Spinnaker::CameraList &camList);
+int InitCameras(Spinnaker::SystemPtr& system, Spinnaker::CameraList& camList, const std::string cameraID[]);
 
 // カメラの終了処理
 // 繋がっているカメラすべてを終了
 //
-// (I) SystemPtr& system システムのシングルトン
+// (I) SystemPtr&  system  システムのシングルトン
+// (I) CameraList& camList グローバルなカメラリスト
 void DeinitCameras(Spinnaker::SystemPtr& system, Spinnaker::CameraList &camList);
 
 // カメラ画像の取得(マルチスレッド用)
@@ -37,6 +41,12 @@ void DeinitCameras(Spinnaker::SystemPtr& system, Spinnaker::CameraList &camList)
 //                  - 0 例外発生
 DWORD WINAPI AcquireImage(LPVOID lpParam);
 
-std::vector<cv::Mat> AquireMultiCamImagesMT(Spinnaker::CameraList &camList);
+// すべてのカメラ画像をcameraID順に取得する
+// cameraID配列に記述した順番で、カメラ画像を取得し、
+// vector<cv::Mat>に格納
+//
+// (I) CameraList& camList  グローバルなカメラリスト
+// (I) string cameraID      カメラID（カメラの順番を固定するリスト）
+std::vector<cv::Mat> AquireMultiCamImagesMT(Spinnaker::CameraList &camList, const std::string cameraID[]);
 
 void ShowAquiredImages(std::vector<cv::Mat> Frames);

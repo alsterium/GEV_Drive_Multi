@@ -73,7 +73,7 @@ int ConfigureCustomImageSetting(Spinnaker::GenApi::INodeMap& nodeMap) {
 	return result;
 }
 
-int InitCameras(SystemPtr& system, CameraList &camList) {
+int InitCameras(SystemPtr& system, CameraList &camList, const string cameraID[]) {
 
 	// ライブラリバージョンを出力
 	const LibraryVersion spinnakerLibraryVersion = system->GetLibraryVersion();
@@ -105,7 +105,7 @@ int InitCameras(SystemPtr& system, CameraList &camList) {
 	int err = 0;
 	try {
 		for (int i = 0; i < camList.GetSize(); i++) {
-			pCam = camList.GetByIndex(i);
+			pCam = camList.GetBySerial(cameraID[i]);
 			// TLデバイスノードマップとGenICamノードマップを取得
 			INodeMap& nodeMapTLDevice = pCam->GetTLDeviceNodeMap();
 			// カメラを初期化
@@ -157,7 +157,7 @@ DWORD WINAPI AcquireImage(LPVOID lpParam) {
 	}
 }
 
-vector<cv::Mat> AquireMultiCamImagesMT(CameraList &camList) {
+vector<cv::Mat> AquireMultiCamImagesMT(CameraList &camList, const string cameraID[]) {
 	unsigned int camListSize = 0;
 	vector<cv::Mat> Frames;
 	int result = 0;
@@ -169,7 +169,7 @@ vector<cv::Mat> AquireMultiCamImagesMT(CameraList &camList) {
 
 		for (int i = 0; i < camListSize; i++) {
 			// カメラを選択
-			pCamList[i] = camList.GetByIndex(i);
+			pCamList[i] = camList.GetBySerial(cameraID[i]);
 			pParam[i].pCam = pCamList[i];
 			grabTheads[i] = CreateThread(nullptr, 0, AcquireImage, &pParam[i], 0, nullptr);
 			assert(grabTheads[i] != nullptr);
