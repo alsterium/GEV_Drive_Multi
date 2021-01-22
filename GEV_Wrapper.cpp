@@ -1,27 +1,11 @@
-#include "Spinnaker.h"
-#include "SpinGenApi/SpinnakerGenApi.h"
-#include <opencv2/opencv.hpp>
-#include <iostream>
-#include <sstream>
+#include "GEV_Wrapper.h"
 
 using namespace Spinnaker;
 using namespace Spinnaker::GenApi;
 using namespace Spinnaker::GenICam;
 using namespace std;
 
-struct PCameraParam
-{
-public:
-	CameraPtr pCam;
-	ImagePtr pImg;
-	cv::Mat dstImg;
-};
-
-CameraList camList;
-// カメラの設定を行う関数
-// (I) INodeMap nodeMap 
-// returnval:result(int) 終了状態
-int ConfigureCustomImageSetting(INodeMap& nodeMap) {
+int ConfigureCustomImageSetting(Spinnaker::GenApi::INodeMap& nodeMap) {
 	int result = 0;
 	cout << endl << endl << "*** CONFIGURING CUSTOM IMAGE SETTINGS ***" << endl << endl;
 
@@ -89,12 +73,7 @@ int ConfigureCustomImageSetting(INodeMap& nodeMap) {
 	return result;
 }
 
-// カメラの初期化を行う関数
-// 繋がっているカメラすべてを初期化する
-//
-// (I) SystemPtr& system システムのシングルトン
-// returnVal:result(int) 終了状態
-int InitCameras(SystemPtr& system) {
+int InitCameras(SystemPtr& system, CameraList &camList) {
 
 	// ライブラリバージョンを出力
 	const LibraryVersion spinnakerLibraryVersion = system->GetLibraryVersion();
@@ -145,11 +124,7 @@ int InitCameras(SystemPtr& system) {
 	return result;
 }
 
-// カメラの終了処理
-// 繋がっているカメラすべてを終了
-//
-// (I) SystemPtr& system システムのシングルトン
-void DeinitCameras(SystemPtr& system) {
+void DeinitCameras(SystemPtr& system, CameraList &camList) {
 	// システムを開放する前にカメラリストを開放
 	camList.Clear();
 	// システムを開放
@@ -158,36 +133,6 @@ void DeinitCameras(SystemPtr& system) {
 	cout << endl << "Done! Press Enter to exit..." << endl;
 	getchar();
 }
-
-// カメラ画像の取得
-// pCamのカメラ画像を取得し、カメラ画像を返却する
-// (I) CameraPtr pCam カメラへのポインタ
-// returnVal: cv::Mat カメラ画像（cv::Mat）
-cv::Mat AquireImage(CameraPtr pCam) {
-	cv::Mat dstFrame;
-	ImagePtr pResultImage = pCam->GetNextImage(100);
-	if (pResultImage->IsIncomplete()) {
-		// Retrieve and print the image status description
-		cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
-			<< "..." << endl
-			<< endl;
-	}
-	else {
-		//cout << "Grabbed image " << ", width = " << width << ", height = " << height << endl;
-					// 画像を変換
-		ImagePtr convertedImage = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
-		dstFrame = cv::Mat((int)convertedImage->GetHeight(), (int)convertedImage->GetWidth(), CV_8UC3, convertedImage->GetData()).clone();
-		pResultImage->Release();
-	}
-	return dstFrame;
-}
-
-// カメラ画像の取得(マルチスレッド用)
-// lpParamの構造体からカメラポインタとカメラ画像ポインタを取得し、
-// 取得したカメラ画像をカメラ画像ポインタに書き込む
-// (I)lpParam カメラポインタと画像ポインタが格納されている構造体
-// returVal : (int) - 1 正常終了
-//                  - 0 例外発生
 
 DWORD WINAPI AcquireImage(LPVOID lpParam) {
 	PCameraParam& param = *((PCameraParam*)lpParam);
@@ -212,27 +157,15 @@ DWORD WINAPI AcquireImage(LPVOID lpParam) {
 	}
 }
 
-//
-vector<cv::Mat> AquireMultiCamImages() {
-	CameraPtr pCam;
-	vector<cv::Mat> Frames;
-	for (int i = 0; i < camList.GetSize(); i++) {
-		pCam = camList.GetByIndex(i);
-		Frames.push_back(AquireImage(pCam));
-	}
-	pCam = nullptr;
-	return Frames;
-}
-
-vector<cv::Mat> AquireMultiCamImagesMT() {
+vector<cv::Mat> AquireMultiCamImagesMT(CameraList &camList) {
 	unsigned int camListSize = 0;
-	vector<cv::Mat> Frames;	
+	vector<cv::Mat> Frames;
 	int result = 0;
 	try {
 		camListSize = camList.GetSize();
 		CameraPtr* pCamList = new CameraPtr[camListSize];
 		HANDLE* grabTheads = new HANDLE[camListSize];
-		PCameraParam *pParam = new PCameraParam[camListSize];
+		PCameraParam* pParam = new PCameraParam[camListSize];
 
 		for (int i = 0; i < camListSize; i++) {
 			// カメラを選択
@@ -288,60 +221,8 @@ vector<cv::Mat> AquireMultiCamImagesMT() {
 }
 
 void ShowAquiredImages(vector<cv::Mat> Frames) {
-		for (int i = 0; i < Frames.size(); i++) {
-			if(!Frames[i].empty())
-				cv::imshow("result " + to_string(i), Frames[i]);
+	for (int i = 0; i < Frames.size(); i++) {
+		if (!Frames[i].empty())
+			cv::imshow("result " + to_string(i), Frames[i]);
 	}
-}
-
-int main() {
-	int result = 0;
-
-	/****************
-	* 初期化処理
-	*****************/
-	// システムオブジェクトのシングルトン参照を取得
-	SystemPtr system = System::GetInstance();
-	// カメラの初期化を行う
-	InitCameras(system);
-	/****************
-	*****************/
-
-	// カメラへのshared pointerを生成する
-	CameraPtr pCam = nullptr;
-	try {
-		for (int i = 0; i < camList.GetSize(); i++) {
-			pCam = camList.GetByIndex(i);
-			pCam->BeginAcquisition();
-		}
-		bool lp_break = true;
-		while (lp_break) {
-			vector<cv::Mat> Frames(AquireMultiCamImagesMT());
-			ShowAquiredImages(Frames);
-			if (cv::waitKey(1) == 'c')lp_break = false;
-		}
-		for (int i = 0; i < camList.GetSize(); i++) {
-			pCam = camList.GetByIndex(i);
-			pCam->EndAcquisition();
-		}
-	}
-	catch (Spinnaker::Exception& e) {
-		cout << "Error: " << e.what() << endl;
-		result = -1;
-	}
-
-
-	/**************
-	* 終了処理
-	***************/
-	//カメラの初期化を解除
-	pCam->DeInit();
-	// カメラへのポインタを開放
-	pCam = nullptr;
-	// カメラの終了処理
-	DeinitCameras(system);
-	/**************
-	***************/
-	return result;
-
 }
