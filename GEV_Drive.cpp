@@ -287,10 +287,10 @@ vector<cv::Mat> AquireMultiCamImagesMT() {
 	return Frames;
 }
 
-void ShowAquiredImages(vector<cv::Mat> Frames) {
+void ShowAquiredImages(vector<cv::Mat> Frames, vector<string> devideSerialID) {
 		for (int i = 0; i < Frames.size(); i++) {
 			if(!Frames[i].empty())
-				cv::imshow("result " + to_string(i), Frames[i]);
+				cv::imshow(devideSerialID[i], Frames[i]);
 	}
 }
 
@@ -307,17 +307,27 @@ int main() {
 	/****************
 	*****************/
 
+	vector<string> deviceSerialID;
+
 	// カメラへのshared pointerを生成する
 	CameraPtr pCam = nullptr;
 	try {
 		for (int i = 0; i < camList.GetSize(); i++) {
 			pCam = camList.GetByIndex(i);
 			pCam->BeginAcquisition();
+
+			// デバイスIDを取得する
+			INodeMap& nodeMap = pCam->GetTLDeviceNodeMap();
+			CStringPtr ptrDeviceSerialNumber = nodeMap.GetNode("DeviceSerialNumber");
+			if (IsReadable(ptrDeviceSerialNumber))
+			{
+				deviceSerialID.push_back(string(ptrDeviceSerialNumber->GetValue()));
+			}
 		}
 		bool lp_break = true;
 		while (lp_break) {
 			vector<cv::Mat> Frames(AquireMultiCamImagesMT());
-			ShowAquiredImages(Frames);
+			ShowAquiredImages(Frames, deviceSerialID);
 			if (cv::waitKey(1) == 'c')lp_break = false;
 		}
 		for (int i = 0; i < camList.GetSize(); i++) {
