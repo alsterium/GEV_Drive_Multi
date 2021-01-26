@@ -10,6 +10,14 @@ int ConfigureCustomImageSetting(Spinnaker::GenApi::INodeMap& nodeMap) {
 	cout << endl << endl << "*** CONFIGURING CUSTOM IMAGE SETTINGS ***" << endl << endl;
 
 	try {
+
+		// カメラのシリアルIDを表示する
+		CStringPtr ptrDeviceSerialNumber = nodeMap.GetNode("DeviceSerialNumber");
+		if (IsReadable(ptrDeviceSerialNumber))
+		{
+			cout << "deviceSerialID: " << string(ptrDeviceSerialNumber->GetValue()) << endl;
+		}
+
 		// ピクセルモードをBayerRG8に設定する
 		CEnumerationPtr ptrPixelFormat = nodeMap.GetNode("PixelFormat");
 		if (IsAvailable(ptrPixelFormat) && IsWritable(ptrPixelFormat)) {
