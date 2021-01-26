@@ -145,7 +145,7 @@ void DeinitCameras(SystemPtr& system, CameraList &camList) {
 DWORD WINAPI AcquireImage(LPVOID lpParam) {
 	PCameraParam& param = *((PCameraParam*)lpParam);
 	try {
-		ImagePtr pResultImage = param.pCam->GetNextImage(100);
+		ImagePtr pResultImage = param.pCam->GetNextImage(400);
 		if (pResultImage->IsIncomplete()) {
 			// Retrieve and print the image status description
 			cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
