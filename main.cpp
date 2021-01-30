@@ -6,9 +6,6 @@ using namespace Spinnaker::GenApi;
 using namespace Spinnaker::GenICam;
 using namespace std;
 
-CameraList camList;
-
-
 // カメラの順番を固定する配列
 // カメラのシリアルIDを入力することで、
 // 配列に記述した順番でカメラ映像を取得できる
@@ -33,56 +30,30 @@ const string cameraID[15] = {
 	//"18551294",
 };
 
+// カメラオブジェクトの初期化
+GEV_Drive cam(cameraID);
+
 int main() {
 	int result = 0;
-	// 構造化束縛により変数を取りだす
-	auto[ map1, map2 ] = initMap("intrinsics.xml");
-
-	/****************
-	* 初期化処理
-	*****************/
-	// システムオブジェクトのシングルトン参照を取得
-	SystemPtr system = System::GetInstance();
-	// カメラの初期化を行う
-	InitCameras(system, camList, cameraID);
-	/****************
-	*****************/
-
-	// カメラへのshared pointerを生成する
-	CameraPtr pCam = nullptr;
 	try {
-		for (int i = 0; i < camList.GetSize(); i++) {
-			pCam = camList.GetBySerial(cameraID[i]);
-			pCam->BeginAcquisition();
-		}
+		// カメラの初期化
+		cam.Init();
+		// カメラ画像の取得開始
+		cam.BeginAcquisition();
 		bool lp_break = true;
 		while (lp_break) {
-			vector<cv::Mat> Frames(AquireMultiCamImagesMT(camList, cameraID, map1, map2));
+			vector<cv::Mat> Frames;
+			// 1フレーム分すべてのカメラから画像を取得する
+			cam >> Frames;
 			ShowAquiredImages(Frames);
 			if (cv::waitKey(1) == 'c')lp_break = false;
 		}
-		for (int i = 0; i < camList.GetSize(); i++) {
-			pCam = camList.GetByIndex(i);
-			pCam->EndAcquisition();
-		}
+		// カメラ画像の取得終了
+		cam.EndAcquisition();
 	}
 	catch (Spinnaker::Exception& e) {
 		cout << "Error: " << e.what() << endl;
 		result = -1;
 	}
-
-
-	/**************
-	* 終了処理
-	***************/
-	//カメラの初期化を解除
-	pCam->DeInit();
-	// カメラへのポインタを開放
-	pCam = nullptr;
-	// カメラの終了処理
-	DeinitCameras(system,camList);
-	/**************
-	***************/
 	return result;
-
 }

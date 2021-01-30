@@ -290,3 +290,77 @@ void ShowAquiredImages(vector<cv::Mat> Frames) {
 			cv::imshow("result " + to_string(i), Frames[i]);
 	}
 }
+
+GEV_Drive::~GEV_Drive()
+{
+	/**************
+	* 終了処理
+	***************/
+	//カメラの初期化を解除
+	pCam->DeInit();
+	// カメラへのポインタを開放
+	pCam = nullptr;
+	// カメラの終了処理
+	DeinitCameras(system, camList);
+}
+
+void GEV_Drive::Init()
+{
+	try
+	{
+		/****************
+		* 初期化処理
+		*****************/
+		// システムオブジェクトのシングルトン参照を取得
+		system = System::GetInstance();
+		// カメラの初期化を行う
+		InitCameras(system, camList, cameraID);
+		/****************
+		*****************/
+		// 構造化束縛により変数を取りだす
+		auto [tmpMap1, tmpMap2] = initMap(intrinsicsFile);
+		map1 = tmpMap1;
+		map2 = tmpMap2;
+	}
+	catch (const std::exception& e)
+	{
+		cout << "Error: " << e.what() << endl;
+	}
+	
+}
+
+void GEV_Drive::BeginAcquisition()
+{
+	try
+	{
+		for (int i = 0; i < camList.GetSize(); i++) {
+			pCam = camList.GetBySerial(cameraID[i]);
+			pCam->BeginAcquisition();
+		}
+	}
+	catch (const std::exception& e)
+	{
+		cout << "Error: " << e.what() << endl;
+	}
+
+}
+
+void GEV_Drive::EndAcquisition()
+{
+	try
+	{
+		for (int i = 0; i < camList.GetSize(); i++) {
+			pCam = camList.GetByIndex(i);
+			pCam->EndAcquisition();
+		}
+	}
+	catch (const std::exception& e)
+	{
+		cout << "Error: " << e.what() << endl;
+	}
+}
+
+void GEV_Drive::operator>>(std::vector<cv::Mat> &dstFrame)
+{
+	dstFrame = AquireMultiCamImagesMT(camList, cameraID, map1, map2);
+}
