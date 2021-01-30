@@ -4,13 +4,22 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <string>
+#include <tuple>
 
 struct PCameraParam
 {
 	Spinnaker::CameraPtr pCam;
 	Spinnaker::ImagePtr pImg;
+	cv::Mat map1;
+	cv::Mat map2;
 	cv::Mat dstImg;
 };
+
+// 歪み補正用のmapをカメラパラメータを読み込んで作成する関数
+// ※注意！returnValの形式はtuple型,構造化束縛により要素を分割して取り出す
+// (I) const string intrinsicsFile  カメラパラメータが記録されているxmlファイル
+// returnVal cv::Mat map1, map2     歪み補正用map
+std::tuple<cv::Mat, cv::Mat>initMap(const std::string intrinsicsFile);
 
 // カメラの設定を行う関数
 // (I) INodeMap nodeMap 
@@ -45,8 +54,9 @@ DWORD WINAPI AcquireImage(LPVOID lpParam);
 // cameraID配列に記述した順番で、カメラ画像を取得し、
 // vector<cv::Mat>に格納
 //
-// (I) CameraList& camList  グローバルなカメラリスト
-// (I) string cameraID      カメラID（カメラの順番を固定するリスト）
-std::vector<cv::Mat> AquireMultiCamImagesMT(Spinnaker::CameraList &camList, const std::string cameraID[]);
+// (I) CameraList& camList      グローバルなカメラリスト
+// (I) const string cameraID    カメラID（カメラの順番を固定するリスト）
+// (I) cv::Mat map1, map2       歪み補正用マップ
+std::vector<cv::Mat> AquireMultiCamImagesMT(Spinnaker::CameraList &camList, const std::string cameraID[], cv::Mat map1, cv::Mat map2);
 
 void ShowAquiredImages(std::vector<cv::Mat> Frames);

@@ -1,5 +1,6 @@
 #include "GEV_Wrapper.h"
 #include <string>
+#include <iostream>
 using namespace Spinnaker;
 using namespace Spinnaker::GenApi;
 using namespace Spinnaker::GenICam;
@@ -13,27 +14,29 @@ CameraList camList;
 // 配列に記述した順番でカメラ映像を取得できる
 const string cameraID[15] = {
 	
-	"18551299",
-	"18464590",
-	"18464423",
-	"18551296",
-	"18509956",
+	//"18551299",
+	//"18464590",
+	//"18464423",
+	//"18551296",
+	//"18509956",
 
-	"18509958",
-	"18408232",
-	"18509333",
-	"18465007",
-	"18509955",
+	//"18509958",
+	//"18408232",
+	//"18509333",
+	//"18465007",
+	//"18509955",
 	
 	"18464424",
 	"18464589",
 	"18509340",
 	"18464421",
-	"18551294",
+	//"18551294",
 };
 
 int main() {
 	int result = 0;
+	// 構造化束縛により変数を取りだす
+	auto[ map1, map2 ] = initMap("intrinsics.xml");
 
 	/****************
 	* 初期化処理
@@ -54,7 +57,7 @@ int main() {
 		}
 		bool lp_break = true;
 		while (lp_break) {
-			vector<cv::Mat> Frames(AquireMultiCamImagesMT(camList, cameraID));
+			vector<cv::Mat> Frames(AquireMultiCamImagesMT(camList, cameraID, map1, map2));
 			ShowAquiredImages(Frames);
 			if (cv::waitKey(1) == 'c')lp_break = false;
 		}

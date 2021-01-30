@@ -5,6 +5,43 @@ using namespace Spinnaker::GenApi;
 using namespace Spinnaker::GenICam;
 using namespace std;
 
+std::tuple<cv::Mat, cv::Mat> initMap(const std::string intrinsicsFile)
+{
+	cv::Mat map1, map2;
+	try
+	{
+		// 行列をファイルから読み込む
+		cout << "Loading camera param from xml file..." << endl;
+		cv::FileStorage fs("intrinsics.xml", cv::FileStorage::READ);
+		cout << "\nimage width: " << (int)fs["image_width"];
+		cout << "\nimage height: " << (int)fs["image_height"];
+
+		cv::Mat intrinsic_matrix_loaded, distortion_coeffs_loaded;
+		fs["camera_matrix"] >> intrinsic_matrix_loaded;
+		fs["distortion_coefficients"] >> distortion_coeffs_loaded;
+		cout << "\nintrinsic matrix: " << intrinsic_matrix_loaded;
+		cout << "\ndistortion coefficients: " << distortion_coeffs_loaded << endl;
+
+		//後続フレーム全てに対して用いる歪み補正用のマップを作成する
+		//
+		cv::initUndistortRectifyMap(
+			intrinsic_matrix_loaded,
+			distortion_coeffs_loaded,
+			cv::Mat(),
+			intrinsic_matrix_loaded,
+			cv::Size(320, 240),
+			CV_16SC2,
+			map1,
+			map2
+		);
+	}
+	catch (const std::exception& e)
+	{
+		cout << "Error: " << e.what() << endl;
+	}
+	return {map1, map2};
+}
+
 int ConfigureCustomImageSetting(Spinnaker::GenApi::INodeMap& nodeMap) {
 	int result = 0;
 	cout << endl << endl << "*** CONFIGURING CUSTOM IMAGE SETTINGS ***" << endl << endl;
@@ -125,6 +162,8 @@ int InitCameras(SystemPtr& system, CameraList &camList, const string cameraID[])
 			if (err < 0)
 				result = -1;
 		}
+		// 構造化束縛により変数を取りだす
+		auto [map1, map2] = initMap("intrinsics.xml");
 	}
 	catch (Spinnaker::Exception& e) {
 		cout << "Error: " << e.what() << endl;
@@ -156,6 +195,15 @@ DWORD WINAPI AcquireImage(LPVOID lpParam) {
 			param.pImg = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
 			param.dstImg = cv::Mat((int)param.pImg->GetHeight(), (int)param.pImg->GetWidth(), CV_8UC3, param.pImg->GetData()).clone();
 			cv::resize(param.dstImg, param.dstImg, cv::Size(320, 240));
+			cv::remap(
+				param.dstImg,
+				param.dstImg,
+				param.map1,
+				param.map2,
+				cv::INTER_LINEAR,
+				cv::BORDER_CONSTANT,
+				cv::Scalar()
+			);
 		}
 		return 1;
 	}
@@ -165,7 +213,13 @@ DWORD WINAPI AcquireImage(LPVOID lpParam) {
 	}
 }
 
-vector<cv::Mat> AquireMultiCamImagesMT(CameraList &camList, const string cameraID[]) {
+vector<cv::Mat> AquireMultiCamImagesMT(
+	CameraList &camList, 
+	const string cameraID[], 
+	cv::Mat map1, 
+	cv::Mat map2
+) 
+{
 	unsigned int camListSize = 0;
 	vector<cv::Mat> Frames;
 	int result = 0;
@@ -179,6 +233,8 @@ vector<cv::Mat> AquireMultiCamImagesMT(CameraList &camList, const string cameraI
 			// カメラを選択
 			pCamList[i] = camList.GetBySerial(cameraID[i]);
 			pParam[i].pCam = pCamList[i];
+			pParam[i].map1 = map1;
+			pParam[i].map2 = map2;
 			grabTheads[i] = CreateThread(nullptr, 0, AcquireImage, &pParam[i], 0, nullptr);
 			assert(grabTheads[i] != nullptr);
 		}
