@@ -60,13 +60,19 @@ int main() {
 			if (cv::waitKey(22) == 'c') {
 				string time = getTimeStamp();
 				for (int i = 0; i < Frames.size(); i++) {
-					string filename = to_string(i) + "-" + time + ".png";
+					string filename ="./image/" + to_string(i) + "-" + time + ".png";
 					filenames.push_back(filename);
 					cv::imwrite(filename, Frames[i]);
 					cout << "saving: " << filename << endl;
 				}
 			}
 		}
+		cv::FileStorage fs("imagelist.xml", cv::FileStorage::WRITE);
+		fs << "images" << "[";
+		for (int i = 0; i < filenames.size(); i++) {
+			fs << filenames[i];
+		}
+		fs << "]";
 		// カメラ画像の取得終了
 		cam.EndAcquisition();
 	}
