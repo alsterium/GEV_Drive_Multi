@@ -44,6 +44,7 @@ std::string getTimeStamp()
 
 int main() {
 	int result = 0;
+	vector<string> filenames;
 	try {
 		// カメラの初期化
 		cam.Init();
@@ -55,11 +56,14 @@ int main() {
 			// 1フレーム分すべてのカメラから画像を取得する
 			cam >> Frames;
 			ShowAquiredImages(Frames);
-			if (cv::waitKey(1) == 'c')lp_break = false;
-			else if (cv::waitKey(10) == 'a') {
+			if (cv::waitKey(1) == 27)lp_break = false;
+			if (cv::waitKey(22) == 'c') {
 				string time = getTimeStamp();
 				for (int i = 0; i < Frames.size(); i++) {
-					cv::imwrite(to_string(i) + time, Frames[i]);
+					string filename = to_string(i) + "-" + time + ".png";
+					filenames.push_back(filename);
+					cv::imwrite(filename, Frames[i]);
+					cout << "saving: " << filename << endl;
 				}
 			}
 		}
