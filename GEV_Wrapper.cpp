@@ -295,8 +295,6 @@ int InitCameras(SystemPtr& system, CameraList &camList, const string cameraID[])
 			if (err < 0)
 				result = -1;
 		}
-		// 構造化束縛により変数を取りだす
-		auto [map1, map2] = initMap("intrinsics.xml");
 	}
 	catch (Spinnaker::Exception& e) {
 		cout << "Error: " << e.what() << endl;
