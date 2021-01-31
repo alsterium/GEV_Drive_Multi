@@ -33,6 +33,15 @@ const string cameraID[15] = {
 // カメラオブジェクトの初期化
 GEV_Drive cam(cameraID);
 
+std::string getTimeStamp()
+{
+	auto now = std::chrono::system_clock::now();
+	auto now_c = std::chrono::system_clock::to_time_t(now);
+	std::stringstream ss;
+	ss << std::put_time(localtime(&now_c), "%Y%m%d_%H%M%S");
+	return ss.str();
+}
+
 int main() {
 	int result = 0;
 	try {
@@ -47,6 +56,12 @@ int main() {
 			cam >> Frames;
 			ShowAquiredImages(Frames);
 			if (cv::waitKey(1) == 'c')lp_break = false;
+			else if (cv::waitKey(10) == 'a') {
+				string time = getTimeStamp();
+				for (int i = 0; i < Frames.size(); i++) {
+					cv::imwrite(to_string(i) + time, Frames[i]);
+				}
+			}
 		}
 		// カメラ画像の取得終了
 		cam.EndAcquisition();
