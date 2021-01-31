@@ -213,7 +213,7 @@ int ConfigureCustomImageSetting(Spinnaker::GenApi::INodeMap& nodeMap) {
 		// DeviceLinkThroughputLimitを設定（帯域を制限する）
 		CIntegerPtr ptrDeviceLinkThroughputLimit = nodeMap.GetNode("DeviceLinkThroughputLimit");
 		if (IsAvailable(ptrDeviceLinkThroughputLimit) && IsWritable(ptrDeviceLinkThroughputLimit)) {
-			ptrDeviceLinkThroughputLimit->SetValue((int64_t)28200000);
+			ptrDeviceLinkThroughputLimit->SetValue((int64_t)28728000);
 			cout << "DeviceLinkThroughputLimit set to " << ptrDeviceLinkThroughputLimit->GetValue() << "..." << endl;
 		}
 		else {
@@ -359,7 +359,7 @@ void DeinitCameras(SystemPtr& system, CameraList &camList) {
 DWORD WINAPI AcquireImage(LPVOID lpParam) {
 	PCameraParam& param = *((PCameraParam*)lpParam);
 	try {
-		ImagePtr pResultImage = param.pCam->GetNextImage(400);
+		ImagePtr pResultImage = param.pCam->GetNextImage(500);
 		if (pResultImage->IsIncomplete()) {
 			// Retrieve and print the image status description
 			cout << "Image incomplete: " << Image::GetImageStatusDescription(pResultImage->GetImageStatus())
@@ -389,6 +389,7 @@ DWORD WINAPI AcquireImage(LPVOID lpParam) {
 }
 
 DWORD WINAPI TransmitTrigger(LPVOID lpParam) {
+
 	PCameraParam& param = *((PCameraParam*)lpParam);
 	try
 	{
@@ -437,13 +438,15 @@ vector<cv::Mat> AquireMultiCamImagesMT(
 			assert(grabTheads[i] != nullptr);
 		}
 
-		// トリガーを発信する
+		// トリガーを発信する(4ms)
 		WaitForMultipleObjects(
 			camListSize,
 			transmitThreads,
 			TRUE,
 			INFINITE
 		);
+
+		//時間計測(260ms)
 		// カメラ画像を取得する
 		WaitForMultipleObjects(
 			camListSize, // 待つスレッドの数
@@ -451,6 +454,7 @@ vector<cv::Mat> AquireMultiCamImagesMT(
 			TRUE,        // スレッドをすべて待つ
 			INFINITE     // 無限に待つ
 		);
+
 
 		// 各カメラのスレッドの戻り値を確認する
 		for (int i = 0; i < camListSize; i++) {
@@ -496,9 +500,11 @@ vector<cv::Mat> AquireMultiCamImagesMT(
 		for (int i = 0; i < camListSize; i++) {
 			pCamList[i] = 0;
 			CloseHandle(grabTheads[i]);
+			CloseHandle(transmitThreads[i]);
 		}
 		delete[] pCamList;
 		delete[] grabTheads;
+		delete[] transmitThreads;
 		delete[] pParam;
 	}
 	catch (Spinnaker::Exception& e) {
