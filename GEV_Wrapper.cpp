@@ -5,43 +5,6 @@ using namespace Spinnaker::GenApi;
 using namespace Spinnaker::GenICam;
 using namespace std;
 
-std::tuple<cv::Mat, cv::Mat> initMap(const std::string intrinsicsFile)
-{
-	cv::Mat map1, map2;
-	try
-	{
-		// 行列をファイルから読み込む
-		cout << "Loading camera param from xml file..." << endl;
-		cv::FileStorage fs("intrinsics.xml", cv::FileStorage::READ);
-		cout << "\nimage width: " << (int)fs["image_width"];
-		cout << "\nimage height: " << (int)fs["image_height"];
-
-		cv::Mat intrinsic_matrix_loaded, distortion_coeffs_loaded;
-		fs["camera_matrix"] >> intrinsic_matrix_loaded;
-		fs["distortion_coefficients"] >> distortion_coeffs_loaded;
-		cout << "\nintrinsic matrix: " << intrinsic_matrix_loaded;
-		cout << "\ndistortion coefficients: " << distortion_coeffs_loaded << endl;
-
-		//後続フレーム全てに対して用いる歪み補正用のマップを作成する
-		//
-		cv::initUndistortRectifyMap(
-			intrinsic_matrix_loaded,
-			distortion_coeffs_loaded,
-			cv::Mat(),
-			intrinsic_matrix_loaded,
-			cv::Size(320, 240),
-			CV_16SC2,
-			map1,
-			map2
-		);
-	}
-	catch (const std::exception& e)
-	{
-		cout << "Error: " << e.what() << endl;
-	}
-	return {map1, map2};
-}
-
 // この関数は、トリガを使用するようにカメラを設定します。
 //まず、トリガモードをオフに設定し、トリガソースを選択します。
 //トリガソースを選択すると、トリガモードが有効になり、選択した
@@ -411,8 +374,8 @@ DWORD WINAPI TransmitTrigger(LPVOID lpParam) {
 vector<cv::Mat> AquireMultiCamImagesMT(
 	CameraList &camList, 
 	const string cameraID[], 
-	cv::Mat map1, 
-	cv::Mat map2
+	std::vector<cv::Mat> map1, 
+	std::vector<cv::Mat> map2
 ) 
 {
 	unsigned int camListSize = 0;
@@ -429,8 +392,8 @@ vector<cv::Mat> AquireMultiCamImagesMT(
 			// カメラを選択
 			pCamList[i] = camList.GetBySerial(cameraID[i]);
 			pParam[i].pCam = pCamList[i];
-			pParam[i].map1 = map1;
-			pParam[i].map2 = map2;
+			pParam[i].map1 = map1[i];
+			pParam[i].map2 = map2[i];
 			transmitThreads[i] = CreateThread(nullptr, 0, TransmitTrigger, &pParam[i], 0, nullptr);
 			grabTheads[i] = CreateThread(nullptr, 0, AcquireImage, &pParam[i], 0, nullptr);
 			assert(grabTheads[i] != nullptr);
@@ -545,10 +508,10 @@ void GEV_Drive::Init()
 		InitCameras(system, camList, cameraID);
 		/****************
 		*****************/
-		// 構造化束縛により変数を取りだす
-		auto [tmpMap1, tmpMap2] = initMap(intrinsicsFile);
-		map1 = tmpMap1;
-		map2 = tmpMap2;
+
+		// カメラパラメータを読み込み，mapを初期化する
+		loadXMLFile();
+		initMap();
 	}
 	catch (const std::exception& e)
 	{
@@ -593,4 +556,62 @@ void GEV_Drive::EndAcquisition()
 void GEV_Drive::operator>>(std::vector<cv::Mat> &dstFrame)
 {
 	dstFrame = AquireMultiCamImagesMT(camList, cameraID, map1, map2);
+}
+
+void GEV_Drive::loadXMLFile()
+{
+	// 行列をファイルから読み込む
+	cout << "Loading camera param from xml file..." << endl;
+	cv::FileStorage fs(calibData, cv::FileStorage::READ);
+	int nCameras;
+	fs["nCameras"] >> nCameras;
+
+	if (nCameras == camList.GetSize()) {
+		cout << "Can't much camera numeras!!" << endl;
+		cout << "nCameras: " << nCameras << " detected camera: " << camList.GetSize() << endl;
+		return;
+	}
+	try
+	{
+		for (int i = 0; i < nCameras; i++) {
+			fs["camera_matrix_" + to_string(i)] >> camera_matrix[i];
+			fs["camera_distortion_" + to_string(i)] >> distortion_coeffs[i];
+			fs["camera_pose_" + to_string(i)] >> camera_pose[i];
+
+			cout << "camera" << i << ": " << endl;
+			cout << "camera_matrix:" << camera_matrix[i] << endl;
+			cout << "camera_distortion: " << distortion_coeffs[i] << endl;
+			cout << "camera_pose: " << camera_pose[i] << endl;
+		}
+	}
+	catch (const std::exception& e)
+	{
+		cout << "Error in LoadXMLFile(): " << e.what() << endl;
+	}
+}
+
+void GEV_Drive::initMap()
+{
+	try
+	{
+		//後続フレーム全てに対して用いる歪み補正用のマップを作成する
+		//
+		for (int i = 0; i < camList.GetSize(); i++) {
+			cv::initUndistortRectifyMap(
+				camera_matrix[i],
+				distortion_coeffs[i],
+				cv::Mat(),
+				camera_matrix[i],
+				cv::Size(320, 240),
+				CV_16SC2,
+				map1[i],
+				map2[i]
+			);
+		}
+		
+	}
+	catch (const std::exception& e)
+	{
+		cout << "Error: " << e.what() << endl;
+	}
 }

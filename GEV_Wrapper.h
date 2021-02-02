@@ -32,13 +32,21 @@ public:
 	void EndAcquisition();
 	// 繋がっているカメラすべての画像を取得
 	void operator>>(std::vector<cv::Mat> &dstFrame);
+	// カメラパラメータが記録されたxmlファイルを取得する
+	void loadXMLFile();
+	// 歪み補正用のmapを生成する
+	void initMap();
 private:
 	const std::string *cameraID;
-	const std::string intrinsicsFile = "intrinsics.xml";
+	const std::string calibData = "calibResult.xml";
 	Spinnaker::SystemPtr system;
 	Spinnaker::CameraList camList;
 	Spinnaker::CameraPtr pCam;
-	cv::Mat map1, map2;
+	std::vector<cv::Mat> camera_matrix;
+	std::vector<cv::Mat> distortion_coeffs;
+	std::vector<cv::Mat> camera_pose;
+	std::vector<cv::Mat> map1;
+	std::vector<cv::Mat> map2;
 };
 
 // 歪み補正用のmapをカメラパラメータを読み込んで作成する関数
@@ -83,6 +91,6 @@ DWORD WINAPI AcquireImage(LPVOID lpParam);
 // (I) CameraList& camList      グローバルなカメラリスト
 // (I) const string cameraID    カメラID（カメラの順番を固定するリスト）
 // (I) cv::Mat map1, map2       歪み補正用マップ
-std::vector<cv::Mat> AquireMultiCamImagesMT(Spinnaker::CameraList &camList, const std::string cameraID[], cv::Mat map1, cv::Mat map2);
+std::vector<cv::Mat> AquireMultiCamImagesMT(Spinnaker::CameraList &camList, const std::string cameraID[], std::vector<cv::Mat> map1, std::vector<cv::Mat> map2);
 
 void ShowAquiredImages(std::vector<cv::Mat> Frames);
