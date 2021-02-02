@@ -330,7 +330,6 @@ DWORD WINAPI AcquireImage(LPVOID lpParam) {
 		else {
 			param.pImg = pResultImage->Convert(PixelFormat_BGR8, HQ_LINEAR);
 			param.dstImg = cv::Mat((int)param.pImg->GetHeight(), (int)param.pImg->GetWidth(), CV_8UC3, param.pImg->GetData()).clone();
-			cv::resize(param.dstImg, param.dstImg, cv::Size(320, 240));
 			cv::remap(
 				param.dstImg,
 				param.dstImg,
@@ -340,6 +339,7 @@ DWORD WINAPI AcquireImage(LPVOID lpParam) {
 				cv::BORDER_CONSTANT,
 				cv::Scalar()
 			);
+			cv::resize(param.dstImg, param.dstImg, cv::Size(320, 240));
 		}
 		return 1;
 	}
@@ -566,17 +566,22 @@ void GEV_Drive::loadXMLFile()
 	int nCameras;
 	fs["nCameras"] >> nCameras;
 
-	if (nCameras == camList.GetSize()) {
-		cout << "Can't much camera numeras!!" << endl;
-		cout << "nCameras: " << nCameras << " detected camera: " << camList.GetSize() << endl;
-		return;
-	}
+	//if (nCameras == (int)camList.GetSize()) {
+	//	cout << "Can't much camera numeras!!" << endl;
+	//	cout << "nCameras: " << nCameras << " detected camera: " << camList.GetSize() << endl;
+	//	return;
+	//}
 	try
 	{
 		for (int i = 0; i < nCameras; i++) {
-			fs["camera_matrix_" + to_string(i)] >> camera_matrix[i];
-			fs["camera_distortion_" + to_string(i)] >> distortion_coeffs[i];
-			fs["camera_pose_" + to_string(i)] >> camera_pose[i];
+			cv::Mat tmpCameraMatrix, tmpDistortionCoeffs, tmpCameraPose;
+			fs["camera_matrix_" + to_string(i)] >> tmpCameraMatrix;
+			fs["camera_distortion_" + to_string(i)] >> tmpDistortionCoeffs;
+			fs["camera_pose_" + to_string(i)] >> tmpCameraPose;
+
+			camera_matrix.push_back(tmpCameraMatrix);
+			distortion_coeffs.push_back(tmpDistortionCoeffs);
+			camera_pose.push_back(tmpCameraPose);
 
 			cout << "camera" << i << ": " << endl;
 			cout << "camera_matrix:" << camera_matrix[i] << endl;
@@ -597,16 +602,19 @@ void GEV_Drive::initMap()
 		//後続フレーム全てに対して用いる歪み補正用のマップを作成する
 		//
 		for (int i = 0; i < camList.GetSize(); i++) {
+			cv::Mat tmpMap1, tmpMap2;
 			cv::initUndistortRectifyMap(
 				camera_matrix[i],
 				distortion_coeffs[i],
 				cv::Mat(),
 				camera_matrix[i],
-				cv::Size(320, 240),
+				cv::Size(1288, 964),
 				CV_16SC2,
-				map1[i],
-				map2[i]
+				tmpMap1,
+				tmpMap2
 			);
+			map1.push_back(tmpMap1);
+			map2.push_back(tmpMap2);
 		}
 		
 	}

@@ -38,7 +38,7 @@ public:
 	void initMap();
 private:
 	const std::string *cameraID;
-	const std::string calibData = "calibResult.xml";
+	const std::string calibData = "multi-camera-results.xml";
 	Spinnaker::SystemPtr system;
 	Spinnaker::CameraList camList;
 	Spinnaker::CameraPtr pCam;
